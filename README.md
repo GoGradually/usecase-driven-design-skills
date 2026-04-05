@@ -66,24 +66,39 @@
 
 ## 2. 설치
 
-스킬 폴더를 Claude Code의 사용자 스킬 디렉토리에 복사합니다.
+### 방법 1: 플러그인으로 설치 (권장)
+
+Claude Code에서 Git 저장소를 마켓플레이스로 등록한 뒤 플러그인을 설치합니다.
 
 ```bash
-# 스킬 디렉토리 위치
+# 1. 마켓플레이스 등록
+/plugin marketplace add https://github.com/GoGradually/usecase-driven-design-skills.git
+
+# 2. 플러그인 설치
+/plugin install usecase-driven-design@GoGradually-usecase-driven-design-skills
+```
+
+설치 후 스킬은 `usecase-driven-design:uc-new-project` 형태로 네임스페이스가 붙습니다.
+
+### 방법 2: 로컬 개발/테스트
+
+저장소를 클론한 뒤 플러그인 디렉토리로 직접 지정합니다.
+
+```bash
+git clone https://github.com/GoGradually/usecase-driven-design-skills.git
+claude --plugin-dir ./usecase-driven-design-skills
+```
+
+### 방법 3: 수동 설치
+
+스킬 폴더를 직접 복사합니다.
+
+```bash
 SKILL_DIR="$HOME/.claude/skills"
 
-# 기존 스킬 백업 (이미 있는 경우)
 for skill in uc-new-project uc-add-feature uc-review uc-merge uc-deprecate usecase-driven-design; do
-  [ -d "$SKILL_DIR/$skill" ] && cp -r "$SKILL_DIR/$skill" "$SKILL_DIR/${skill}.bak"
+  cp -r skills/$skill "$SKILL_DIR/"
 done
-
-# 새 스킬 복사
-cp -r uc-new-project "$SKILL_DIR/"
-cp -r uc-add-feature "$SKILL_DIR/"
-cp -r uc-review "$SKILL_DIR/"
-cp -r uc-merge "$SKILL_DIR/"
-cp -r uc-deprecate "$SKILL_DIR/"
-cp -r usecase-driven-design "$SKILL_DIR/"
 ```
 
 ---
