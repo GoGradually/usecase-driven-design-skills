@@ -64,8 +64,8 @@
 스킬 폴더를 Claude Code의 사용자 스킬 디렉토리에 복사합니다.
 
 ```bash
-# 스킬 디렉토리 위치 (환경에 따라 다를 수 있음)
-SKILL_DIR="$HOME/.claude/skills/user"
+# 스킬 디렉토리 위치
+SKILL_DIR="$HOME/.claude/skills"
 
 # 기존 스킬 백업 (이미 있는 경우)
 for skill in uc-new-project uc-add-feature uc-review uc-merge uc-deprecate usecase-driven-design; do
@@ -73,12 +73,12 @@ for skill in uc-new-project uc-add-feature uc-review uc-merge uc-deprecate useca
 done
 
 # 새 스킬 복사
-cp -r skills/uc-new-project "$SKILL_DIR/"
-cp -r skills/uc-add-feature "$SKILL_DIR/"
-cp -r skills/uc-review "$SKILL_DIR/"
-cp -r skills/uc-merge "$SKILL_DIR/"
-cp -r skills/uc-deprecate "$SKILL_DIR/"
-cp -r skills/usecase-driven-design "$SKILL_DIR/"
+cp -r uc-new-project "$SKILL_DIR/"
+cp -r uc-add-feature "$SKILL_DIR/"
+cp -r uc-review "$SKILL_DIR/"
+cp -r uc-merge "$SKILL_DIR/"
+cp -r uc-deprecate "$SKILL_DIR/"
+cp -r usecase-driven-design "$SKILL_DIR/"
 ```
 
 ---
