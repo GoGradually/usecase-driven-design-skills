@@ -1,6 +1,6 @@
 # UseCase 설계 스킬 사용 가이드
 
-> 버전: v2 (파일 기반 출력)
+> 버전: v3 (상태 모델 추가, UC 다이어그램 위치 수정)
 > 대상 환경: Claude Code
 > 스킬 수: 6개
 
@@ -39,6 +39,11 @@
 - Git 등 버전 관리 시스템과 자연스럽게 연동
 - 수정 시 파일을 직접 편집하므로 변경 이력이 명확
 
+**OOA 완전 커버리지** — 객체지향 분석(OOA)의 세 축을 모두 다룹니다:
+- **기능 모델링**: 유스케이스, 시나리오, 시스템 경계
+- **구조 모델링**: 도메인 모델, 변수 식별
+- **행위 모델링**: 상태 모델 (엔티티 생애주기)
+
 ### 스킬 간 관계
 
 ```
@@ -55,7 +60,7 @@
              uc-deprecate ← 기능 폐기/제거 (필요 시)
 ```
 
-`usecase-driven-design`은 위 워크플로우의 경량 버전(6단계)으로, 초안/메인 문서 분리 없이 바로 설계서를 만들 때 사용합니다.
+`usecase-driven-design`은 위 워크플로우의 경량 버전(7단계)으로, 초안/메인 문서 분리 없이 바로 설계서를 만들 때 사용합니다.
 
 ---
 
@@ -87,12 +92,12 @@ cp -r usecase-driven-design "$SKILL_DIR/"
 
 | 스킬 | 용도 | 트리거 키워드 | 단계 | 주요 산출물 |
 |------|------|-------------|------|-----------|
-| `uc-new-project` | 새 프로젝트 UC 설계 | "새 프로젝트", "프로젝트 시작" | 7단계 | `step1~7.md` → 통합 초안 |
-| `uc-add-feature` | 기존 프로젝트에 기능 추가 | "기능 추가", "새 기능 UseCase" | 7단계 + step0 | `step0~7.md` → 통합 초안 |
+| `uc-new-project` | 새 프로젝트 UC 설계 | "새 프로젝트", "프로젝트 시작" | 8단계 | `step1~8.md` → 통합 초안 |
+| `uc-add-feature` | 기존 프로젝트에 기능 추가 | "기능 추가", "새 기능 UseCase" | 8단계 + step0 | `step0~8.md` → 통합 초안 |
 | `uc-review` | UC 문서 리뷰 | "리뷰", "검토", "초안 확인" | 5개 관점 | `review-report.md` |
 | `uc-merge` | 초안을 메인 문서에 병합 | "병합", "머지", "merge" | 2개 시나리오 | 메인 설계서 + 병합 리포트 |
-| `uc-deprecate` | UC 폐기/제거 | "폐기", "deprecate", "제거" | 6개 분석 + 실행 | 영향 분석 + 결과 리포트 |
-| `usecase-driven-design` | 경량 UC 설계 | `/usecase-driven-design` | 6단계 | `step1~6.md` → 통합 설계서 |
+| `uc-deprecate` | UC 폐기/제거 | "폐기", "deprecate", "제거" | 7개 분석 + 실행 | 영향 분석 + 결과 리포트 |
+| `usecase-driven-design` | 경량 UC 설계 | `/usecase-driven-design` | 7단계 | `step1~7.md` → 통합 설계서 |
 
 ---
 
@@ -102,7 +107,7 @@ cp -r usecase-driven-design "$SKILL_DIR/"
 
 ```
 1. 프로젝트 시작
-   └─→ uc-new-project (7단계 → 초안 생성)
+   └─→ uc-new-project (8단계 → 초안 생성)
 
 2. 초안 리뷰 (권장)
    └─→ uc-review (리뷰 리포트 → 수정 반영)
@@ -111,7 +116,7 @@ cp -r usecase-driven-design "$SKILL_DIR/"
    └─→ uc-merge (초안 → 메인 설계서)
 
 4. 기능 추가 (반복)
-   └─→ uc-add-feature (7단계 → 새 초안)
+   └─→ uc-add-feature (8단계 → 새 초안)
        └─→ uc-review (리뷰)
            └─→ uc-merge (메인에 병합)
 
@@ -124,7 +129,7 @@ cp -r usecase-driven-design "$SKILL_DIR/"
 규모가 작거나 빠르게 진행할 때는 `usecase-driven-design`만 사용합니다:
 
 ```
-usecase-driven-design (6단계 → 바로 설계서)
+usecase-driven-design (7단계 → 바로 설계서)
 ```
 
 ---
@@ -153,22 +158,23 @@ Claude: 디렉토리 생성 + 1단계 작성 → step1-usecases.md 저장
     ↓
 Claude: (수정 시 파일 편집) → 2단계 작성 → step2-scenarios.md 저장
     ↓
-  ... (3~7단계 반복) ...
+  ... (3~8단계 반복) ...
     ↓
-Claude: 7단계 완료 → [feature]-draft.md 통합본 생성
+Claude: 8단계 완료 → [feature]-draft.md 통합본 생성
 ```
 
 #### 생성되는 파일
 
 ```
 docs/usecase/drafts/[feature-name]/
-├── step1-usecases.md        ← 유스케이스 목록 + 다이어그램
+├── step1-usecases.md        ← 유스케이스 목록
 ├── step2-scenarios.md        ← 시나리오 + 시퀀스 다이어그램
 ├── step3-variables.md        ← 독립변수/상수/종속변수 + 관계도
 ├── step4-domain-model.md     ← 엔티티, 관계, 규칙 + 클래스 다이어그램
-├── step5-system-boundary.md  ← 외부/내부 분리 + 경계 다이어그램
-├── step6-exceptions.md       ← 예외 정리
-├── step7-conditions.md       ← 사전/사후조건
+├── step5-state-model.md      ← 상태 모델 + 상태 다이어그램
+├── step6-system-boundary.md  ← 시스템 경계 + UC 다이어그램
+├── step7-exceptions.md       ← 예외 정리
+├── step8-conditions.md       ← 사전/사후조건
 └── [feature-name]-draft.md   ← 최종 통합본
 ```
 
@@ -180,9 +186,10 @@ docs/usecase/drafts/[feature-name]/
 | 2단계 | 기본 흐름이 자연스러운지, 대안 흐름이 충분한지 |
 | 3단계 | 변수 분류가 타당한지, 종속변수의 결정 요인이 맞는지 |
 | 4단계 | 엔티티가 누락 없는지, 관계가 맞는지 |
-| 5단계 | 내/외부 분리가 올바른지 |
-| 6단계 | 예외가 빠짐없는지, 대응이 구체적인지 |
-| 7단계 | 조건이 검증 가능한 형태인지 |
+| 5단계 | 라이프사이클 엔티티를 빠짐없이 다루는지, 전이가 시나리오와 일치하는지 |
+| 6단계 | 내/외부 분리가 올바른지, UC 다이어그램이 경계를 정확히 표현하는지 |
+| 7단계 | 예외가 빠짐없는지, 대응이 구체적인지 |
+| 8단계 | 조건이 검증 가능한 형태인지, 상태 모델의 출발/도착 상태가 반영되었는지 |
 
 ---
 
@@ -208,7 +215,7 @@ Claude: 기존 문서 분석 → step0-existing-analysis.md 저장
     ↓
 사용자: 분석 결과 확인 + 새 기능 설명
     ↓
-Claude: 1~7단계 진행 (uc-new-project와 동일, ID는 기존 이어서)
+Claude: 1~8단계 진행 (uc-new-project와 동일, ID는 기존 이어서)
     ↓
 Claude: 통합본 생성
 ```
@@ -217,9 +224,10 @@ Claude: 통합본 생성
 
 | 항목 | uc-new-project | uc-add-feature |
 |------|---------------|----------------|
-| step0 | 없음 | 기존 문서 분석 파일 생성 |
+| step0 | 없음 | 기존 문서 분석 파일 생성 (상태 모델 포함) |
 | UC ID | UC-01부터 시작 | 기존 마지막 ID 다음부터 |
 | 도메인 모델 | 새로 설계 | 기존 모델 확장 (기존/신규 구분) |
+| 상태 모델 | 새로 설계 | 기존 상태 모델 확장 (기존 상태 유지 + 신규 추가) |
 | 액터 | 새로 정의 | 기존 재사용 + 필요 시 추가 |
 | 다이어그램 | 독립적 | 기존 노드를 포함하여 맥락 표현 |
 
@@ -234,18 +242,18 @@ UseCase 문서를 5개 관점에서 체계적으로 리뷰합니다.
 ```
 "환불 기능 초안을 리뷰해줘."
 "메인 설계서를 전체 검토해줘."
-"도메인 모델만 집중적으로 봐줘."
+"상태 모델만 집중적으로 봐줘."
 ```
 
 #### 리뷰 5개 관점
 
 | 관점 | 검토 초점 |
 |------|----------|
-| **완전성** | 7단계 모두 있는지, 빠진 UC/다이어그램 없는지 |
-| **일관성** | ID 연속성, 용어 통일, 다이어그램↔표 일치 |
-| **품질** | 시나리오 구체성, 변수 분류 타당성, 예외 대응 |
-| **구조적 적절성** | UC 크기, 의존성 방향, 관계 정합성 |
-| **기존 문서 정합성** | ID 충돌, 엔티티 충돌, 규칙 모순 (기존 문서 있을 때만) |
+| **완전성** | 8단계 모두 있는지, 빠진 UC/다이어그램 없는지 |
+| **일관성** | ID 연속성, 용어 통일, 다이어그램↔표 일치, 상태↔시나리오↔사후조건 정합 |
+| **품질** | 시나리오 구체성, 변수 분류 타당성, 상태 모델 완전성, 예외 대응 |
+| **구조적 적절성** | UC 크기, 의존성 방향, 관계 정합성, 상태 모델이 개념 수준인지 |
+| **기존 문서 정합성** | ID 충돌, 엔티티 충돌, 규칙 모순, 상태 모델 충돌 (기존 문서 있을 때만) |
 
 #### 생성되는 파일
 
@@ -296,6 +304,7 @@ docs/usecase/merge-report-[날짜].md              ← 병합 리포트
 - UC ID 재정렬 (문서 전체에서 참조 갱신)
 - 변수 식별 통합 (시나리오 근거, 결정 요인 ID 갱신)
 - 도메인 모델 통합 (엔티티 합산, 중복 관계 제거)
+- 상태 모델 통합 (상태 합산, 전이 중복 제거, UC 참조 갱신)
 - 용어 통일 (메인 문서 기준)
 - Mermaid 다이어그램 전체 재생성
 
@@ -331,13 +340,14 @@ Claude: 대상 UC 분석 → impact-analysis-[UC-ID].md 저장
 Claude: 실행 → 메인 문서 갱신 + deprecation-report 저장
 ```
 
-#### 영향 분석 6개 관점
+#### 영향 분석 7개 관점
 
 | 분석 | 확인 내용 |
 |------|----------|
 | UC 의존성 | 다른 UC가 이 UC를 참조하는 곳 |
 | 변수 연쇄 | 종속변수가 다른 UC의 입력이 되는 경우 |
 | 도메인 모델 | 이 UC 전용 엔티티 vs 공유 엔티티 |
+| 상태 모델 | 이 UC가 트리거하는 전이, 도달 불가 상태 발생 여부 |
 | 시스템 경계 | 고아 액터, 트리거 소멸 |
 | 예외/조건 | 삭제 대상 |
 | Mermaid | 갱신이 필요한 다이어그램 |
@@ -367,9 +377,10 @@ docs/usecase/deprecated/[UC-ID]-[name]-deprecated.md  ← 백업 (하드 제거 
 
 | 항목 | usecase-driven-design | uc-new-project |
 |------|----------------------|----------------|
-| 단계 수 | 6단계 | 7단계 (변수 식별 포함) |
+| 단계 수 | 7단계 | 8단계 (변수 식별 포함) |
 | 변수 식별 | 없음 | 3단계에서 수행 |
 | Mermaid | 없음 | 모든 단계에 포함 |
+| 상태 모델 | 테이블만 (Mermaid 없음) | 테이블 + stateDiagram |
 | 산출물 | 바로 설계서 | 초안 → merge로 설계서 |
 | 디렉토리 | `docs/usecase/step*.md` | `docs/usecase/drafts/[feature]/step*.md` |
 | 적합한 상황 | 소규모, 빠른 진행 | 중대규모, 체계적 관리 |
@@ -400,9 +411,10 @@ docs/usecase/deprecated/[UC-ID]-[name]-deprecated.md  ← 백업 (하드 제거 
         │   │   ├── step2-scenarios.md
         │   │   ├── step3-variables.md
         │   │   ├── step4-domain-model.md
-        │   │   ├── step5-system-boundary.md
-        │   │   ├── step6-exceptions.md
-        │   │   ├── step7-conditions.md
+        │   │   ├── step5-state-model.md
+        │   │   ├── step6-system-boundary.md
+        │   │   ├── step7-exceptions.md
+        │   │   ├── step8-conditions.md
         │   │   ├── review-report.md
         │   │   └── order-draft.md
         │   │
@@ -427,7 +439,7 @@ docs/usecase/deprecated/[UC-ID]-[name]-deprecated.md  ← 백업 (하드 제거 
 1. "주문 관리 시스템 프로젝트를 시작하자. 유스케이스를 설계해줘."
    → uc-new-project 실행
 
-2. 7단계 완료 후:
+2. 8단계 완료 후:
    "초안 리뷰해줘."
    → uc-review 실행
 
@@ -442,7 +454,7 @@ docs/usecase/deprecated/[UC-ID]-[name]-deprecated.md  ← 백업 (하드 제거 
 1. "환불 기능을 추가하고 싶어."
    → uc-add-feature 실행
 
-2. 7단계 완료 후:
+2. 8단계 완료 후:
    "리뷰 부탁해."
    → uc-review 실행
 
@@ -465,7 +477,7 @@ docs/usecase/deprecated/[UC-ID]-[name]-deprecated.md  ← 백업 (하드 제거 
 
 ```
 1. "/usecase-driven-design"
-   → usecase-driven-design 실행 (6단계)
+   → usecase-driven-design 실행 (7단계)
 ```
 
 ---
@@ -500,8 +512,8 @@ docs/usecase/deprecated/[UC-ID]-[name]-deprecated.md  ← 백업 (하드 제거 
 
 ### Q: usecase-driven-design과 uc-new-project 중 어떤 걸 써야 하나요?
 
-- **소규모 프로젝트**, 빠른 프로토타이핑 → `usecase-driven-design` (6단계, Mermaid 없음)
-- **중대규모 프로젝트**, 지속적 기능 추가 예정 → `uc-new-project` (7단계, 초안/메인 분리, Mermaid 포함)
+- **소규모 프로젝트**, 빠른 프로토타이핑 → `usecase-driven-design` (7단계, Mermaid 없음)
+- **중대규모 프로젝트**, 지속적 기능 추가 예정 → `uc-new-project` (8단계, 초안/메인 분리, Mermaid 포함)
 
 ### Q: 리뷰 없이 바로 병합해도 되나요?
 
@@ -519,3 +531,7 @@ docs/usecase/deprecated/[UC-ID]-[name]-deprecated.md  ← 백업 (하드 제거 
 
 - **소프트 폐기**한 경우: `[DEPRECATED]` 마킹을 제거하면 됩니다.
 - **하드 제거**한 경우: `deprecated/` 폴더의 백업 파일을 참고하여 다시 추가합니다. `uc-add-feature`로 재추가하는 것을 권장합니다.
+
+### Q: 상태 모델은 왜 필요한가요?
+
+시나리오는 한 번의 실행 흐름을 기술하기 때문에, 하나의 엔티티가 여러 UC에 걸쳐 겪는 전체 생애주기를 조망할 수 없습니다. 상태 모델은 엔티티의 허용/불허 전이를 명시하여, 예외 정리(7단계)와 사전/사후조건(8단계)에서 상태 기반 검증 로직을 자연스럽게 도출할 수 있게 합니다.
