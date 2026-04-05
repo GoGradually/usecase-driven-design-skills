@@ -72,7 +72,7 @@ Claude Code에서 Git 저장소를 마켓플레이스로 등록한 뒤 플러그
 
 ```bash
 # 1. 마켓플레이스 등록
-/plugin marketplace add https://github.com/GoGradually/usecase-driven-design-skills.git
+/plugin marketplace add GoGradually/usecase-driven-design-skills
 
 # 2. 플러그인 설치
 /plugin install usecase-driven-design@GoGradually-usecase-driven-design-skills
@@ -86,7 +86,7 @@ Claude Code에서 Git 저장소를 마켓플레이스로 등록한 뒤 플러그
 
 ```bash
 git clone https://github.com/GoGradually/usecase-driven-design-skills.git
-claude --plugin-dir ./usecase-driven-design-skills
+claude --plugin-dir ./usecase-driven-design-skills/usecase-driven-design
 ```
 
 ### 방법 3: 수동 설치
@@ -97,7 +97,7 @@ claude --plugin-dir ./usecase-driven-design-skills
 SKILL_DIR="$HOME/.claude/skills"
 
 for skill in uc-new-project uc-add-feature uc-review uc-merge uc-deprecate usecase-driven-design; do
-  cp -r skills/$skill "$SKILL_DIR/"
+  cp -r usecase-driven-design/skills/$skill "$SKILL_DIR/"
 done
 ```
 
