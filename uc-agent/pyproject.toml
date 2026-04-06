@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "uc-agent"
+version = "0.1.0"
+description = "UseCase 설계 멀티 에이전트 시스템 — Claude Agent SDK 기반"
+requires-python = ">=3.10"
+dependencies = [
+    "claude-agent-sdk>=0.2.0",
+    "anyio>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+uc-agent = "uc_agent.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
