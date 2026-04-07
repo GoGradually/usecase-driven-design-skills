@@ -53,6 +53,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "--skills-dir",
         help="SKILL.md 디렉토리 경로 (기본: 자동 감지)",
     )
+    parser.add_argument(
+        "--cost-tier",
+        choices=["economy", "standard", "premium"],
+        default="standard",
+        help="비용 티어 (economy: 저비용, standard: 균형, premium: 최고 품질)",
+    )
+    parser.add_argument(
+        "--resume",
+        metavar="DRAFTS_DIR",
+        help="중단된 워크플로우 재개 (drafts 디렉토리 경로)",
+    )
     # 병렬 리뷰 서브커맨드
     parser.add_argument(
         "--parallel-review",
@@ -66,18 +77,23 @@ def _build_parser() -> argparse.ArgumentParser:
 async def _run_orchestrator(args: argparse.Namespace) -> None:
     from .orchestrator import run
 
-    if not args.prompt:
-        print("오류: 설계 요청(prompt)을 입력해주세요.", file=sys.stderr)
+    if not args.prompt and not args.resume:
+        print("오류: 설계 요청(prompt)을 입력하거나 --resume로 재개하세요.", file=sys.stderr)
         print("예시: uc-agent '주문 관리 시스템 설계'", file=sys.stderr)
         sys.exit(1)
 
+    # resume 모드에서 prompt가 없으면 기본 프롬프트 사용
+    prompt = args.prompt or "이전 작업을 이어서 진행해주세요."
+
     async for text in run(
-        prompt=args.prompt,
+        prompt=prompt,
         mode=args.mode,
         cwd=args.cwd,
         skills_dir=args.skills_dir,
         model=args.model,
         worker_model=args.worker_model,
+        cost_tier=args.cost_tier,
+        resume_dir=args.resume,
         max_turns=args.max_turns,
     ):
         print(text, end="", flush=True)
