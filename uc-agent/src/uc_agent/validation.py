@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 # step 파일별 필수 패턴
 STEP_PATTERNS: dict[int, list[str]] = {
@@ -118,13 +120,12 @@ def validate_draft_file(file_path: str) -> ValidationResult:
 
 def validate_all_steps(drafts_dir: str) -> list[ValidationResult]:
     """drafts 디렉토리 내 모든 step 파일을 검증한다."""
+    import glob as glob_mod
+
     results: list[ValidationResult] = []
 
     for step_num in range(1, 9):
         file_path = os.path.join(drafts_dir, f"step{step_num}-*.md")
-        # glob으로 매칭
-        import glob as glob_mod
-
         matches = glob_mod.glob(file_path)
         if not matches:
             results.append(
@@ -139,3 +140,83 @@ def validate_all_steps(drafts_dir: str) -> list[ValidationResult]:
                 results.append(validate_step_file(match, step_num))
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# 시맨틱 검증 (LLM 기반)
+# ---------------------------------------------------------------------------
+
+VALIDATOR_PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "validator.md"
+
+
+async def semantic_validate(
+    file_path: str,
+    user_request: str,
+    step_number: int,
+) -> ValidationResult:
+    """Haiku로 시맨틱 검증을 수행한다.
+
+    Args:
+        file_path: 검증할 step 파일 경로.
+        user_request: 사용자의 원래 설계 요청.
+        step_number: step 번호 (1-8).
+
+    Returns:
+        ValidationResult (issues에 coverage_score 정보 포함).
+    """
+    from claude_agent_sdk import ClaudeAgentOptions, AssistantMessage, TextBlock, query
+
+    # 파일 읽기
+    if not os.path.exists(file_path):
+        return ValidationResult(valid=False, file_path=file_path, issues=["파일이 존재하지 않음"])
+
+    with open(file_path, encoding="utf-8") as f:
+        content = f.read()
+
+    if not content.strip():
+        return ValidationResult(valid=False, file_path=file_path, issues=["파일이 비어있음"])
+
+    # validator 프롬프트 로드
+    validator_prompt = VALIDATOR_PROMPT_PATH.read_text(encoding="utf-8")
+
+    prompt = (
+        f"다음 step {step_number} 파일을 검증하세요.\n\n"
+        f"## 사용자 요구사항\n{user_request}\n\n"
+        f"## Step {step_number} 파일 내용\n{content}"
+    )
+
+    texts: list[str] = []
+    async for message in query(
+        prompt=prompt,
+        options=ClaudeAgentOptions(
+            system_prompt=validator_prompt,
+            model="haiku",
+            max_turns=1,
+        ),
+    ):
+        if isinstance(message, AssistantMessage):
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    texts.append(block.text)
+
+    # JSON 응답 파싱
+    raw = "\n".join(texts).strip()
+    # JSON 블록 추출 (```json ... ``` 또는 bare JSON)
+    json_match = re.search(r"\{[^{}]*\}", raw, re.DOTALL)
+    if json_match:
+        try:
+            result = json.loads(json_match.group())
+            issues = result.get("issues", [])
+            score = result.get("coverage_score", 0.0)
+            valid = result.get("valid", score >= 0.6)
+            if score < 1.0:
+                issues.append(f"커버리지 점수: {score:.2f}")
+            return ValidationResult(valid=valid, file_path=file_path, issues=issues)
+        except json.JSONDecodeError:
+            pass
+
+    return ValidationResult(
+        valid=False,
+        file_path=file_path,
+        issues=["시맨틱 검증 응답 파싱 실패"],
+    )
