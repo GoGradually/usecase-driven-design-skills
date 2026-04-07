@@ -14,7 +14,8 @@ from claude_agent_sdk import (
     query,
 )
 
-from .agents import build_agents
+from .agents import build_agents, get_orchestrator_model
+from .tracing import PipelineTracer
 
 # 오케스트레이터 프롬프트 디렉토리
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
@@ -37,6 +38,8 @@ async def run(
     skills_dir: str | None = None,
     model: str | None = None,
     worker_model: str | None = None,
+    cost_tier: str | None = None,
+    resume_dir: str | None = None,
     max_turns: int = 200,
 ) -> AsyncIterator[str]:
     """오케스트레이터를 실행하고 텍스트 출력을 스트리밍한다.
@@ -46,15 +49,61 @@ async def run(
         mode: "automated" 또는 "interactive".
         cwd: 프로젝트 루트 디렉토리. None이면 현재 디렉토리.
         skills_dir: SKILL.md 디렉토리. None이면 기본 경로.
-        model: 오케스트레이터 모델. None이면 기본 모델.
-        worker_model: 워커 에이전트 모델. None이면 부모 모델 상속.
+        model: 오케스트레이터 모델. None이면 cost_tier 또는 기본 모델.
+        worker_model: 워커 에이전트 모델. None이면 cost_tier 또는 티어별 자동.
+        cost_tier: 비용 티어 ("economy", "standard", "premium").
+        resume_dir: 재개할 drafts 디렉토리. None이면 처음부터 시작.
         max_turns: 최대 에이전틱 턴 수.
 
     Yields:
         에이전트의 텍스트 응답 조각들.
     """
     orchestrator_prompt = _load_prompt(mode)
-    agents = build_agents(skills_dir=skills_dir, model=worker_model)
+
+    # 적응형 라우팅: 프로젝트 규모 분석 → 전략 선택
+    from .routing import analyze_request, select_strategy
+
+    profile = analyze_request(prompt)
+    strategy = select_strategy(profile)
+
+    # cost_tier: 명시적 지정이 없으면 전략에서 결정
+    effective_tier = cost_tier or strategy.cost_tier
+
+    # 모델 결정: 명시적 지정 > cost_tier > 기본값
+    resolved_model = get_orchestrator_model(model, effective_tier)
+    agents = build_agents(
+        skills_dir=skills_dir,
+        model=worker_model,
+        cost_tier=effective_tier,
+        project_dir=cwd,
+    )
+
+    # 전략 프롬프트 보충
+    if strategy.prompt_supplement:
+        orchestrator_prompt += strategy.prompt_supplement
+
+    # 체크포인트 재개 컨텍스트 주입
+    if resume_dir is not None:
+        from .checkpoint import load_checkpoint, detect_progress
+
+        checkpoint = load_checkpoint(resume_dir)
+        if checkpoint is not None:
+            completed = checkpoint.completed_steps
+            current = checkpoint.current_step
+        else:
+            last_step = detect_progress(resume_dir)
+            completed = list(range(1, last_step + 1))
+            current = last_step + 1
+
+        resume_context = (
+            f"\n\n## 재개 컨텍스트\n\n"
+            f"이전 작업이 중단되었습니다. 다음 정보를 참고하여 이어서 진행하세요.\n"
+            f"- 완료된 step: {completed}\n"
+            f"- 다음 진행할 step: {current}\n"
+            f"- drafts 디렉토리: {resume_dir}\n"
+            f"- 완료된 step 파일을 먼저 Read로 읽어 컨텍스트를 파악한 후 다음 step부터 진행하세요.\n"
+        )
+        orchestrator_prompt += resume_context
 
     # interactive 모드에서는 AskUserQuestion 허용
     tools = list(ORCHESTRATOR_TOOLS)
@@ -63,7 +112,7 @@ async def run(
 
     options = ClaudeAgentOptions(
         system_prompt=orchestrator_prompt,
-        model=model,
+        model=resolved_model,
         allowed_tools=tools,
         agents=agents,
         max_turns=max_turns,
@@ -71,6 +120,8 @@ async def run(
     )
 
     session_id: str | None = None
+    tracer = PipelineTracer()
+    span = tracer.start_span("orchestrator")
 
     async for message in query(prompt=prompt, options=options):
         if isinstance(message, AssistantMessage):
@@ -79,8 +130,15 @@ async def run(
                     yield block.text
         elif isinstance(message, ResultMessage):
             session_id = message.session_id
+            tracer.end_span(span, cost=message.total_cost_usd)
+
+            # 트레이스 리포트 저장
+            trace_dir = cwd or "."
+            trace_path = tracer.save_report(trace_dir)
+
+            yield tracer.summary()
             if message.total_cost_usd is not None:
-                yield f"\n--- 완료 (비용: ${message.total_cost_usd:.4f}) ---\n"
+                yield f"--- 완료 (비용: ${message.total_cost_usd:.4f}, 트레이스: {trace_path}) ---\n"
 
 
 async def run_single_skill(
