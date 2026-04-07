@@ -14,9 +14,21 @@
 |------------------|---------------|
 | 새 프로젝트, 처음부터, 새로 만들기 | `uc-new-project` |
 | 기능 추가, 기존 프로젝트에 추가 | `uc-add-feature` |
+| 기능 추가 + docs/usecase/ 없음 + 소스 코드 있음 | `uc-add-feature` (코드베이스 분석 모드) |
 | 리뷰, 검토, 확인 | `uc-review` |
 | 병합, 머지, 통합 | `uc-merge` |
 | 폐기, 제거, 삭제 | `uc-deprecate` |
+
+### 1-1. 코드베이스 분석 모드 판별
+
+기능 추가 요청 시, 에이전트를 디스패치하기 전에 다음 순서로 확인한다:
+
+1. `docs/usecase/` 디렉토리가 존재하는가?
+   - **있으면** → `uc-add-feature`를 기본 모드(문서 분석)로 디스패치
+2. `docs/usecase/`가 없으면, 소스 코드가 존재하는가?
+   - 빌드 매니페스트(`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `build.gradle`, `pom.xml`, `*.sln`) 또는 소스 디렉토리(`src/`, `lib/`, `app/`, `cmd/`, `pkg/`, `internal/`)가 있는지 확인
+   - **소스 코드가 있으면** → 사용자에게 안내: "기존 코드베이스를 분석하여 엔티티, 상태 모델, API 구조를 파악하겠습니다. 진행할까요?" → 확인 후 `uc-add-feature`에 "코드베이스 분석 모드로 Step 0를 진행하세요" 지시
+   - **소스 코드도 없으면** → `uc-new-project`로 디스패치
 
 ### 2. 단계별 확인 흐름
 
