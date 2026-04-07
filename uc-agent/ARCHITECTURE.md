@@ -4,29 +4,28 @@
 
 uc-agent는 Claude Agent SDK 기반의 멀티 에이전트 시스템으로, UseCase 주도 설계의 8단계 워크플로우를 자동화한다. 오케스트레이터가 사용자 요청을 분석하여 워커 에이전트를 선택하고 시퀀싱하며, 각 워커는 SKILL.md를 시스템 프롬프트로 사용하여 파일 기반 산출물을 생성한다.
 
-```
-사용자
-  │
-  ▼
-┌─────────────────────────────────────────────────────────┐
-│                    Orchestrator Agent                     │
-│  (적응형 라우팅 → 전략 선택 → 에이전트 시퀀싱)            │
-│  도구: Read, Glob, Grep, Agent, Bash, [AskUserQuestion]  │
-│                                                          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐    │
-│  │uc-new-   │ │uc-add-   │ │  critic  │ │uc-review │    │
-│  │project   │ │feature   │ │ (Haiku)  │ │  (Opus)  │    │
-│  │(Sonnet)  │ │(Sonnet)  │ │          │ │          │    │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘    │
-│  ┌──────────┐ ┌──────────┐                               │
-│  │uc-merge  │ │uc-       │                               │
-│  │(Sonnet)  │ │deprecate │                               │
-│  │          │ │ (Opus)   │                               │
-│  └──────────┘ └──────────┘                               │
-└─────────────────────────────────────────────────────────┘
-  │
-  ▼
-docs/usecase/drafts/[feature]/step1~8.md → draft.md → 메인 설계서
+```mermaid
+graph TB
+    User([사용자])
+    User --> Orch
+
+    subgraph Orch["Orchestrator Agent (Opus)"]
+        direction TB
+        R["적응형 라우팅 → 전략 선택 → 에이전트 시퀀싱"]
+    end
+
+    subgraph Workers["워커 에이전트"]
+        direction LR
+        NP["uc-new-project<br/>(Sonnet)"]
+        AF["uc-add-feature<br/>(Sonnet)"]
+        CR["critic<br/>(Haiku)"]
+        RV["uc-review<br/>(Opus)"]
+        MG["uc-merge<br/>(Sonnet)"]
+        DP["uc-deprecate<br/>(Opus)"]
+    end
+
+    Orch -- "Agent 도구" --> Workers
+    Workers --> Output["docs/usecase/drafts/[feature]/<br/>step1~8.md → draft.md → 메인 설계서"]
 ```
 
 ---
@@ -81,29 +80,40 @@ usecase-driven-design/skills/             # 워커 에이전트의 시스템 프
 
 ## 모듈 의존성 그래프
 
-```
-main.py ──────────────┬──────────────────────────────────┐
-  │                   │                                  │
-  │ (오케스트레이터)    │ (단일 스킬)                       │ (병렬 리뷰)
-  ▼                   ▼                                  ▼
-orchestrator.py    orchestrator.run_single_skill()    parallel.py
-  │                                                      │
-  ├── routing.py          (독립 모듈, 외부 의존 없음)       ├── agents.load_skill_prompt()
-  ├── checkpoint.py       (독립 모듈, 외부 의존 없음)       └── claude_agent_sdk.query()
-  ├── tracing.py          (독립 모듈, 외부 의존 없음)
-  ├── agents.build_agents()
-  │     │
-  │     └── feedback.py   (독립 모듈, 외부 의존 없음)
-  │
-  └── claude_agent_sdk.query()
+```mermaid
+graph TD
+    main["main.py<br/>(CLI 진입점)"]
+    mcp["mcp_server.py<br/>(MCP 진입점)"]
 
-mcp_server.py
-  ├── orchestrator.run()
-  ├── orchestrator.run_single_skill()
-  └── parallel.parallel_review()
+    main -- "오케스트레이터" --> orch["orchestrator.py"]
+    main -- "단일 스킬" --> orch_single["orchestrator.<br/>run_single_skill()"]
+    main -- "병렬 리뷰" --> parallel["parallel.py"]
 
-validation.py             (독립 모듈, semantic_validate만 claude_agent_sdk 사용)
+    mcp --> orch
+    mcp --> orch_single
+    mcp --> parallel
+
+    orch --> routing["routing.py"]
+    orch --> checkpoint["checkpoint.py"]
+    orch --> tracing["tracing.py"]
+    orch --> agents["agents.py"]
+    orch --> sdk["claude_agent_sdk.<br/>query()"]
+
+    agents --> feedback["feedback.py"]
+
+    parallel --> agents_load["agents.<br/>load_skill_prompt()"]
+    parallel --> sdk
+
+    validation["validation.py"] -.->|"semantic_validate만"| sdk
+
+    style routing fill:#e8f5e9,stroke:#388e3c
+    style checkpoint fill:#e8f5e9,stroke:#388e3c
+    style tracing fill:#e8f5e9,stroke:#388e3c
+    style feedback fill:#e8f5e9,stroke:#388e3c
+    style validation fill:#e8f5e9,stroke:#388e3c
 ```
+
+> 초록 배경 모듈은 서로 의존하지 않는 독립 모듈이다. 모두 `orchestrator.py`에서 조합된다.
 
 핵심 원칙: `routing`, `checkpoint`, `feedback`, `tracing`, `validation`은 서로 의존하지 않는 독립 모듈이다. 모두 `orchestrator.py`에서 조합된다.
 
@@ -113,12 +123,12 @@ validation.py             (독립 모듈, semantic_validate만 claude_agent_sdk 
 
 ### CLI 엔트리포인트 (`main.py`)
 
-```
-uc-agent [prompt] [옵션]
-          │
-          ├── --parallel-review paths... ──→ parallel.parallel_review()
-          ├── --skill <name> ─────────────→ orchestrator.run_single_skill()
-          └── (기본) ─────────────────────→ orchestrator.run()
+```mermaid
+flowchart LR
+    CLI["uc-agent [prompt] [옵션]"]
+    CLI -->|"--parallel-review"| PR["parallel.parallel_review()"]
+    CLI -->|"--skill name"| SS["orchestrator.run_single_skill()"]
+    CLI -->|"기본"| OR["orchestrator.run()"]
 ```
 
 | 옵션 | 기본값 | 설명 |
@@ -153,92 +163,71 @@ SDK MCP(`claude_agent_sdk.create_sdk_mcp_server`)를 우선 사용하되, 없으
 
 ### `orchestrator.run()` 전체 흐름
 
-```
-사용자 프롬프트
-  │
-  ▼
-┌─ 1. 적응형 라우팅 ──────────────────────────────────────┐
-│  routing.analyze_request(prompt) → ProjectProfile        │
-│    키워드 스캔 → complexity(simple|medium|complex),       │
-│    estimated_uc_count, domains[]                          │
-│                                                          │
-│  routing.select_strategy(profile) → ExecutionStrategy     │
-│    workflow, cost_tier, auto_merge, prompt_supplement     │
-└──────────────────────────────────────────────────────────┘
-  │
-  ▼
-┌─ 2. 에이전트 구성 ──────────────────────────────────────┐
-│  agents.build_agents(skills_dir, model, cost_tier, cwd)  │
-│    ├── SKILL.md 로드 (5개 스킬)                           │
-│    ├── 피드백 주입 (생성 스킬만)                            │
-│    ├── 모델 결정 (스킬별 티어)                              │
-│    └── critic 에이전트 추가 (prompts/critic.md)            │
-│  → dict[str, AgentDefinition] (6개)                       │
-└──────────────────────────────────────────────────────────┘
-  │
-  ▼
-┌─ 3. 프롬프트 조립 ──────────────────────────────────────┐
-│  base: orchestrator_automated.md 또는 _interactive.md     │
-│  + strategy.prompt_supplement (규모별 지침)                │
-│  + 재개 컨텍스트 (resume_dir가 있을 때)                     │
-└──────────────────────────────────────────────────────────┘
-  │
-  ▼
-┌─ 4. SDK 실행 ───────────────────────────────────────────┐
-│  claude_agent_sdk.query(prompt, ClaudeAgentOptions(       │
-│    system_prompt, model, allowed_tools, agents, max_turns │
-│  ))                                                       │
-│                                                          │
-│  오케스트레이터 LLM이 Agent 도구로 워커를 호출:              │
-│    Step A:  uc-new-project / uc-add-feature (생성)        │
-│    Step A-1: critic (즉각 CRITICAL 검사)                   │
-│    Step B:  uc-review (5관점 리뷰)                         │
-│    Step C:  uc-merge (메인 문서 병합)                       │
-│    Step D:  피드백 수집                                     │
-└──────────────────────────────────────────────────────────┘
-  │
-  ▼
-┌─ 5. 트레이싱 + 출력 ───────────────────────────────────┐
-│  PipelineTracer: 에이전트별 시간/비용/상태 기록             │
-│  → .trace-{timestamp}.json 저장                           │
-│  → 터미널에 요약 테이블 출력                                │
-└──────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Prompt["사용자 프롬프트"]
+
+    subgraph Phase1["1. 적응형 라우팅"]
+        AR["routing.analyze_request(prompt)<br/>→ ProjectProfile<br/>(complexity, uc_count, domains)"]
+        SS["routing.select_strategy(profile)<br/>→ ExecutionStrategy<br/>(workflow, cost_tier, prompt_supplement)"]
+        AR --> SS
+    end
+
+    subgraph Phase2["2. 에이전트 구성"]
+        BA["agents.build_agents()<br/>SKILL.md 로드 (5개) + critic 추가"]
+        FB["피드백 주입 (생성 스킬만)"]
+        MD["모델 결정 (스킬별 티어)"]
+        BA --> FB --> MD
+    end
+
+    subgraph Phase3["3. 프롬프트 조립"]
+        BP["base: orchestrator_automated.md<br/>+ strategy.prompt_supplement<br/>+ 재개 컨텍스트 (선택)"]
+    end
+
+    subgraph Phase4["4. SDK 실행"]
+        QR["claude_agent_sdk.query()"]
+        SA["Step A: 생성 (uc-new-project / uc-add-feature)"]
+        SA1["Step A-1: critic (즉각 CRITICAL 검사)"]
+        SB["Step B: uc-review (5관점 리뷰)"]
+        SC["Step C: uc-merge (메인 문서 병합)"]
+        SD["Step D: 피드백 수집"]
+        QR --> SA --> SA1 --> SB --> SC --> SD
+    end
+
+    subgraph Phase5["5. 트레이싱 + 출력"]
+        TR["PipelineTracer: 에이전트별 시간/비용/상태"]
+        TF[".trace-timestamp.json 저장"]
+        TS["터미널 요약 테이블 출력"]
+        TR --> TF & TS
+    end
+
+    Prompt --> Phase1 --> Phase2 --> Phase3 --> Phase4 --> Phase5
 ```
 
 ### 자동 모드 파이프라인 시퀀스
 
-```
-Step A: 생성
-  uc-new-project 또는 uc-add-feature
-  → step1-usecases.md ~ step8-conditions.md + draft.md 생성
-  → 각 step 파일을 Read로 검증
-      │
-      ▼
-Step A-1: 즉각 검사
-  critic (Haiku)
-  → UC ID 연속성, 주어 명시, 도메인-시나리오 일치,
-    이벤트-시나리오 매핑, Mermaid 문법 검사
-  → 이슈 발견 시 파일 직접 수정
-  → "PASS" 또는 수정 요약 반환
-      │
-      ▼
-Step B: 리뷰
-  uc-review (Opus)
-  → 5관점(완전성, 일관성, 품질, 구조, 정합성) 리뷰
-  → review-report.md 생성
-  → CRITICAL 이슈 있으면 → Step A 에이전트에 수정 디스패치 → 재리뷰
-  → 2회 미해결 시 사용자 에스컬레이션
-      │
-      ▼
-Step C: 병합
-  uc-merge (Sonnet)
-  → 메인 설계서 + merge-report.md 생성
-      │
-      ▼
-Step D: 피드백 수집
-  → review-report.md에서 CRITICAL/WARNING 패턴 추출
-  → .feedback-history.json에 저장/갱신
-  → 다음 생성 시 프롬프트에 자동 주입
+```mermaid
+flowchart TD
+    A["Step A: 생성<br/>uc-new-project / uc-add-feature"]
+    A --> |"step1~8.md + draft.md"| A1
+
+    A1["Step A-1: 즉각 검사<br/>critic (Haiku)"]
+    A1 --> |"PASS / 수정 요약"| B
+
+    B["Step B: 리뷰<br/>uc-review (Opus)<br/>5관점 리뷰 → review-report.md"]
+    B --> Critical{CRITICAL 이슈?}
+    Critical --> |"있음"| Fix["수정 디스패치<br/>(Step A 에이전트)"]
+    Fix --> B
+    Critical --> |"없음"| C
+
+    B --> Escalate{2회 미해결?}
+    Escalate --> |"Yes"| User["사용자 에스컬레이션"]
+
+    C["Step C: 병합<br/>uc-merge (Sonnet)<br/>메인 설계서 + merge-report.md"]
+    C --> D
+
+    D["Step D: 피드백 수집<br/>CRITICAL/WARNING 패턴 추출<br/>→ .feedback-history.json 저장"]
+    D -.-> |"다음 실행 시 프롬프트 주입"| A
 ```
 
 ---
@@ -259,11 +248,13 @@ Step D: 피드백 수집
 
 ### 모델 선택 로직 (`agents._resolve_worker_model`)
 
-```
-우선순위:
-  1. --worker-model (CLI 명시 지정)  → 모든 워커에 일괄 적용
-  2. --cost-tier 프리셋의 worker_default  → 프리셋에 기본 모델이 있으면 적용
-  3. SKILL_MODEL_TIERS[skill_name]  → 스킬별 기본 모델
+```mermaid
+flowchart LR
+    A{"--worker-model<br/>명시 지정?"}
+    A -->|"Yes"| R1["모든 워커에 일괄 적용"]
+    A -->|"No"| B{"--cost-tier 프리셋에<br/>worker_default 있음?"}
+    B -->|"Yes"| R2["프리셋 기본 모델 적용"]
+    B -->|"No"| R3["SKILL_MODEL_TIERS<br/>스킬별 기본 모델"]
 ```
 
 ### 비용 티어 프리셋
@@ -276,11 +267,11 @@ Step D: 피드백 수집
 
 ### SKILL.md 로드 (`agents.load_skill_prompt`)
 
-```
-skills/uc-review/SKILL.md
-  │
-  ├── YAML frontmatter (---로 감싼 메타데이터)  → 제거
-  └── 본문 (마크다운)  → 시스템 프롬프트로 사용
+```mermaid
+flowchart LR
+    F["skills/uc-review/SKILL.md"] --> Parse["load_skill_prompt()"]
+    Parse --> |"YAML frontmatter"| Drop["제거"]
+    Parse --> |"본문 (마크다운)"| Prompt["시스템 프롬프트로 사용"]
 ```
 
 ### 피드백 주입 (생성 스킬 전용)
@@ -305,17 +296,15 @@ skills/uc-review/SKILL.md
 
 ### 규모 판단
 
-```
-analyze_request(user_prompt) → ProjectProfile
-  │
-  ├── 키워드 기반 복잡도 점수
-  │   simple 키워드: "간단한", "할일", "메모", "basic" ...
-  │   complex 키워드: "플랫폼", "ERP", "이커머스", "enterprise" ...
-  │
-  ├── 도메인 추출 (정규식)
-  │   "주문", "결제", "배송", "회원", "상품", "재고" ...
-  │
-  └── 보정: 도메인 4개 이상이면 complex로 상향
+```mermaid
+flowchart TD
+    Input["사용자 프롬프트"]
+    Input --> KW["키워드 기반 복잡도 점수<br/>simple: 간단한, 할일, 메모, basic...<br/>complex: 플랫폼, ERP, 이커머스, enterprise..."]
+    Input --> DM["도메인 추출 (정규식)<br/>주문, 결제, 배송, 회원, 상품, 재고..."]
+    KW & DM --> ADJ{"도메인 4개 이상?"}
+    ADJ -->|"Yes"| Complex["complexity = complex"]
+    ADJ -->|"No"| Score["키워드 점수 기반<br/>simple / medium / complex"]
+    Complex & Score --> PP["ProjectProfile<br/>(complexity, estimated_uc_count, domains)"]
 ```
 
 ### 전략 선택
@@ -349,17 +338,14 @@ analyze_request(user_prompt) → ProjectProfile
 
 ### 재개 흐름
 
-```
---resume docs/usecase/drafts/order/
-  │
-  ├── .checkpoint.json이 있으면 → 정확한 상태 복원
-  └── 없으면 → detect_progress()로 step 파일 존재 여부 탐지
-  │
-  ▼
-오케스트레이터 프롬프트에 "## 재개 컨텍스트" 주입
-  │ (완료된 step, 다음 step, drafts 디렉토리)
-  ▼
-오케스트레이터가 완료된 step은 건너뛰고 다음 step부터 진행
+```mermaid
+flowchart TD
+    Resume["--resume docs/usecase/drafts/order/"]
+    Resume --> Check{".checkpoint.json<br/>존재?"}
+    Check -->|"Yes"| Load["정확한 상태 복원<br/>(completed_steps, current_step)"]
+    Check -->|"No"| Detect["detect_progress()<br/>step 파일 존재 여부로 추론"]
+    Load & Detect --> Inject["오케스트레이터 프롬프트에<br/>'## 재개 컨텍스트' 주입"]
+    Inject --> Skip["완료된 step 건너뛰고<br/>다음 step부터 진행"]
 ```
 
 ---
@@ -368,30 +354,15 @@ analyze_request(user_prompt) → ProjectProfile
 
 리뷰에서 반복 지적되는 패턴을 수집하여, 다음 설계 생성에 반영한다.
 
-```
-            ┌─────────────────────────────────────────────┐
-            │                                             │
-            ▼                                             │
-uc-new-project / uc-add-feature                           │
-  (피드백이 프롬프트에 주입된 상태)                           │
-            │                                             │
-            ▼                                             │
-      step 파일 생성                                       │
-            │                                             │
-            ▼                                             │
-      uc-review → review-report.md                        │
-            │                                             │
-            ▼                                             │
-extract_patterns_from_review()                            │
-  → [CRITICAL]/[WARNING] 패턴 추출                        │
-            │                                             │
-            ▼                                             │
-merge_feedback(기존, 신규)                                 │
-  → 동일 패턴이면 frequency++                              │
-            │                                             │
-            ▼                                             │
-.feedback-history.json에 저장 ─────────────────────────────┘
-  (빈도 내림차순 정렬, 상위 5개가 다음 생성에 주입)
+```mermaid
+flowchart TD
+    Gen["uc-new-project / uc-add-feature<br/>(피드백이 프롬프트에 주입된 상태)"]
+    Gen --> Step["step 파일 생성"]
+    Step --> Review["uc-review → review-report.md"]
+    Review --> Extract["extract_patterns_from_review()<br/>CRITICAL/WARNING 패턴 추출"]
+    Extract --> Merge["merge_feedback(기존, 신규)<br/>동일 패턴이면 frequency++"]
+    Merge --> Save[".feedback-history.json에 저장<br/>빈도 내림차순 정렬"]
+    Save -.->|"다음 실행 시<br/>상위 5개 프롬프트 주입"| Gen
 ```
 
 ---
@@ -415,17 +386,14 @@ step별 필수 패턴이 파일에 존재하는지 확인한다:
 
 ### 시맨틱 검증 (LLM 기반)
 
-```
-semantic_validate(file_path, user_request, step_number)
-  │
-  ├── validator.md 프롬프트로 Haiku 호출
-  ├── 사용자 요구사항 대비 커버리지 평가
-  └── JSON 응답:
-      {
-        "valid": true/false,
-        "issues": ["누락된 기능 목록"],
-        "coverage_score": 0.0 ~ 1.0    // 0.6 이상이면 valid
-      }
+```mermaid
+flowchart LR
+    Input["step 파일 + 사용자 요구사항"]
+    Input --> Haiku["Haiku 호출<br/>(validator.md 프롬프트)"]
+    Haiku --> JSON["JSON 응답"]
+    JSON --> Valid{"coverage_score<br/>>= 0.6?"}
+    Valid -->|"Yes"| Pass["valid: true"]
+    Valid -->|"No"| Fail["valid: false<br/>+ issues 목록"]
 ```
 
 ---
@@ -434,15 +402,27 @@ semantic_validate(file_path, user_request, step_number)
 
 ### 추적 구조
 
-```python
-PipelineTracer
-  └── spans: list[AgentSpan]
-        └── AgentSpan
-              ├── agent_name: str
-              ├── start_time / end_time: float
-              ├── cost_usd: float | None
-              ├── turns: int
-              └── status: "running" | "completed" | "failed"
+```mermaid
+classDiagram
+    class PipelineTracer {
+        +spans: list~AgentSpan~
+        +start_span(agent_name) AgentSpan
+        +end_span(span, cost, turns, status)
+        +total_cost: float
+        +total_duration: float
+        +summary() str
+        +save_report(output_dir) str
+    }
+    class AgentSpan {
+        +agent_name: str
+        +start_time: float
+        +end_time: float?
+        +cost_usd: float?
+        +turns: int
+        +status: str
+        +duration_sec: float
+    }
+    PipelineTracer "1" --> "*" AgentSpan
 ```
 
 ### 출력 예시
@@ -470,15 +450,21 @@ uc-merge                31.4s    $0.0890     OK
 
 anyio의 구조화된 동시성(task group)으로 여러 draft를 동시에 리뷰한다.
 
-```
-parallel_review(["draft1.md", "draft2.md", "draft3.md"])
-  │
-  └── anyio.create_task_group()
-        ├── _review_single("draft1.md") ──→ ReviewResult
-        ├── _review_single("draft2.md") ──→ ReviewResult  (동시 실행)
-        └── _review_single("draft3.md") ──→ ReviewResult
-  │
-  └── 모든 태스크 완료 → list[ReviewResult] 반환
+```mermaid
+flowchart TD
+    PR["parallel_review([draft1, draft2, draft3])"]
+    PR --> TG["anyio.create_task_group()"]
+    TG --> R1["_review_single(draft1)"]
+    TG --> R2["_review_single(draft2)"]
+    TG --> R3["_review_single(draft3)"]
+    R1 --> RR1["ReviewResult"]
+    R2 --> RR2["ReviewResult"]
+    R3 --> RR3["ReviewResult"]
+    RR1 & RR2 & RR3 --> Result["list[ReviewResult] 반환"]
+
+    style R1 fill:#fff3e0,stroke:#e65100
+    style R2 fill:#fff3e0,stroke:#e65100
+    style R3 fill:#fff3e0,stroke:#e65100
 ```
 
 각 `_review_single`은 독립적으로 `uc-review` 프롬프트를 로드하고 `claude_agent_sdk.query()`를 호출한다.
